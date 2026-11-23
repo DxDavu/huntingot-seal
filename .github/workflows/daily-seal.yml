@@ -1,0 +1,26 @@
+name: Daily seal
+on:
+  schedule:
+    - cron: '25 0 * * *'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  seal:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch the latest daily seal
+        run: |
+          set -eu
+          if ! curl -fsS "https://api.huntingot.com/v1/days/latest" -o latest.json; then echo "No seal yet."; exit 0; fi
+          day=$(jq -r '.root.day' latest.json)
+          if [ -z "$day" ] || [ "$day" = "null" ]; then echo "No seal yet."; exit 0; fi
+          if [ -f "days/$day.json" ]; then echo "$day already kept."; exit 0; fi
+          jq '.root' latest.json > "days/$day.json"
+          echo "| $day | $(jq -r '.root.root' latest.json) |" >> SEALS.md
+          git config user.name "Sealed by Hunt"
+          git config user.email "seal@huntingot.com"
+          git add days SEALS.md
+          git commit -m "Seal for $day"
+          git push
